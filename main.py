@@ -5,7 +5,7 @@ import hashlib
 import sys
 from time import time
 from uuid import uuid4
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 
 
 class BlockChain():
@@ -13,8 +13,8 @@ class BlockChain():
 
     def __init__(self):
         self.chain = []
-        self.new_block(previous_hash=1, proof=100)
         self.current_trxs = []
+        self.new_block(previous_hash=1, proof=100)
 
     def new_block(self, proof, previous_hash=None):
         """ creat a new block """
@@ -36,6 +36,8 @@ class BlockChain():
         self.current_trxs.append(
             {"sender": sender, "recipient": recipient, "amount": amount})
 
+        return self.last_block['index']+1
+
     @staticmethod
     def hash(block):
         """ hash a block """
@@ -45,6 +47,7 @@ class BlockChain():
     @property
     def last_block(self):
         """ define """
+        return self.chain[-1]
 
     @staticmethod
     def valid_proof(last_proof, proof):
@@ -67,27 +70,46 @@ app = Flask(__name__)
 
 node_id = str(uuid4())
 
-block_chanin = BlockChain()
+blockChain = BlockChain()
 
 
-@app.route("/mine")
+@app.route("/mine", methods=['GET'])
 def mine():
     """ this function mine a block and add it the chain """
-    return "Hello"
+    last_block = blockChain.last_block
+    # last_proof = last_proof['proof']
+    proof = blockChain.proof_of_work(last_block)
+
+    blockChain.new_trx(sender="0", recipient=node_id, amount=50)
+    previous_hash = blockChain.hash(last_block)
+    block = blockChain.new_block(proof, previous_hash)
+
+    response = {
+        'message': "new block froged",
+        'index': block['index'],
+        'transactions': block['transactions'],
+        'proof': block['proof'],
+        'previous_hash': block['previous_hash'],
+    }
+    return jsonify(response), 200
 
 
 @app.route("/trxs/new", methods=['POST'])
 def new_trx():
     """ add a transaction """
-    return "new  transaction"
+    values = request.get_json()
+    this_block = blockChain.new_trx(
+        values['sender'], values['recipient'], values['amount'])
+    res = {"message": f"will be added to block {this_block}"}
+    return jsonify(res), 201
 
 
 @app.route('/chain')
 def full_chain():
-    ''' jskfskjf '''
+    ''' number of chain '''
     res = {
-        'chain': block_chanin.chain,
-        'length': len(block_chanin.chain),
+        'chain': blockChain.chain,
+        'length': len(blockChain.chain),
     }
     return jsonify(res), 200
 
