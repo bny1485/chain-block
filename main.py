@@ -3,9 +3,10 @@
 import json
 import hashlib
 import sys
+import requests
 from time import time
 from uuid import uuid4
-from urllib.parse import urlpars
+from urllib.parse import urlparse
 from flask import Flask, jsonify, request
 
 
@@ -156,6 +157,30 @@ def full_chain():
         'chain': blockChain.chain,
         'length': len(blockChain.chain),
     }
+    return jsonify(res), 200
+
+
+@app.route('/nodes/register', methods=['POST'])
+def register_node():
+    values = request.get_json()
+    nodes = values.get('nodes')
+    for node in nodes:
+        BlockChain.register_node(node)
+
+    res = {"message":"nodes added","total_nodes": list(BlockChain.nodes)}
+
+    return jsonify(res), 201
+
+@app.route('/nodes/resolve')
+def consensus():
+    replaced = BlockChain.resolve_conflicts()
+    if replaced:
+        res = {
+           "message":'replaced',
+            'new_chain':blockChain.chain,
+        }
+    else:
+        res = {'message':'I am the best','chain':blockChain.chain}
     return jsonify(res), 200
 
 
