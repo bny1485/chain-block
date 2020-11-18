@@ -5,6 +5,7 @@ import hashlib
 import sys
 from time import time
 from uuid import uuid4
+from urllib.parse import urlpars
 from flask import Flask, jsonify, request
 
 
@@ -12,8 +13,9 @@ class BlockChain():
     """define a block chain on one machin"""
 
     def __init__(self):
-        self.chain = []
         self.current_trxs = []
+        self.chain = []
+        self.nodes = set()
         self.new_block(previous_hash=1, proof=100)
 
     def new_block(self, proof, previous_hash=None):
@@ -37,6 +39,48 @@ class BlockChain():
             {"sender": sender, "recipient": recipient, "amount": amount})
 
         return self.last_block['index']+1
+
+    def register_node(self, address):
+        """ node's """
+        parsed_url = urlpars(address)
+        self.nodes.add(parsed_url.netloc)
+
+    def valid_chain(self, chain):
+        """ chick if the chain is valid """
+        last_block = chain[0]
+        current_index = 1
+        while current_index < len(chain):
+            block = chain[current_index]
+            if block['previous_hash'] != self.hash(last_block):
+                return False
+
+            if not self.valid_proof(last_block['proof'], block['proof']):
+                return False
+            last_block = block
+            current_index += 1
+
+        return True
+
+
+    def resolve_conflicts(self):
+        """ checs all nodes and selecs the best chain """
+        neighbours = self.nodes
+        new_chain = None
+
+        max_length = len(self.chain)
+        for node in neighbours:
+            response = request.get(f'http://{node}/chain')
+            if response.status_code == 200:
+                lenght = response.json()['length']
+                chain = response.json()['chain']
+                if lenght > max_length and self.valid_chain(chain):
+                    max_length = lenght
+                    new_chain = chain
+        if new_chain:
+            self.chain = new_chain
+            return True
+        return False
+
 
     @staticmethod
     def hash(block):
@@ -85,12 +129,13 @@ def mine():
     block = blockChain.new_block(proof, previous_hash)
 
     response = {
-        'message': "new block froged",
+        'message': "New Block Forged",
         'index': block['index'],
-        'transactions': block['transactions'],
+        'transactions': block['trxs'],
         'proof': block['proof'],
         'previous_hash': block['previous_hash'],
     }
+
     return jsonify(response), 200
 
 
